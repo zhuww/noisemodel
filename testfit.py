@@ -1,10 +1,10 @@
 from pylab import *
 from datatools.tempo import *
 
-m = model('1713.Sep.T1.par')
+m = model('1713.Sep.T2.par')
 t = TOAfile('1713.Sep.T2.tim')
 #m.thawall()
-m.tempofit(t)
+m.tempo2fit(t)
 m.average()
 print m.chisq, m.dof
 
