@@ -15,10 +15,11 @@ Tsun = 4.925490947e-6
 #pf = model('1713.May.OMDOT.par')
 #pf = model('1713.May.par')
 #pf = model('1713.Jun.OMDOT.par')
-pf = model('J1713+0747.par')
+#pf = model('1713_21yr_JSE.par')
 #pf = model('1713.9yr.S.par')
 #pf = model('J1713+0747_NANOGrav_8yv0.gls.par')
 #pf = model('1713.GLS.out.par')
+pf = model('J1713+0747.par')
 
 M2 = float(pf.M2[0])
 SINI = float(pf.SINI[0])
