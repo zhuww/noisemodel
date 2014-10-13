@@ -6,7 +6,7 @@ from numpy import dot
 from datatools.tempo import *
 from fortran_utils import *
 from pylab import *
-from scipy.optimize import fmin, minimize, fmin_powell
+from scipy.optimize import fmin, fmin_powell
 
 secperday = 86400
 dayperyear = 365.24218967
