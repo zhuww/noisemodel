@@ -16,7 +16,8 @@ LARGE_NUMBER = np.exp(300)
 
 tstart = time.time()
 tf = TOAfile('1713.Sep.T2.tim')
-md = model('1713_21yr_test.par')
+#md = model('1713_21yr_test.par')
+md = model('1713_21yr_JAE.par')
 md.tempofit(tf, DesignMatrix=True)
 T2EFAC = [par for par in md.__dict__ if par.startswith('T2EFAC')]
 T2EQUAD = [par for par in md.__dict__ if par.startswith('T2EQUAD')]
@@ -121,33 +122,44 @@ def loglikelihood(plist):
 
     """Setup red noise Fourier matrix, Fr"""
     N_mode = 100
-    T = float(tf.end - tf.start)
     Tstart = float(tf.start)
+    Tspan = float(tf.end - tf.start)
     def RedPower(RNAMP, RNIDX, T, N_mode):
         secperyear = secperday*dayperyear
         logfac = np.log((secperyear*1e6)/(2.0*np.pi*np.sqrt(3.0)))
-        T_in_s = T * secperday
+        T_in_s = Tspan * secperday
         result = 2*(RNAMP-logfac) - np.log(12.) - 2.*np.log(np.pi) - np.log(T_in_s) + 3.*np.log(secperyear)
-        logmu = np.log(np.array(range(1, N_mode+1))) - np.log(T_in_s ) + np.log(secperyear)
+        logmu = np.log(np.array(range(1, N_mode+1))) - np.log(T_in_s ) + np.log(secperyear) - np.log(5)
         result += logmu*RNIDX
         return np.exp(result)
-    Fr_ele = np.array([[p] for p in RedPower(RNAMP, RNIDX, T, N_mode)])
+    Fr_ele = np.array([[p] for p in RedPower(RNAMP, RNIDX, float(tf.end - tf.start), N_mode)])
     phi = np.vstack((Fr_ele, Fr_ele))
     #phi = Fr_ele
 
-    K = np.array([ [2. * np.pi * mode / T] for mode in range(1, N_mode+1)])
-    avetoa = np.hstack([md.avetoa[key]-Tstart for key in md.toagrps])
-    FEsin = np.sin(avetoa * K)
-    FEcos = np.cos(avetoa * K)
-    FE = np.vstack((FEsin, FEcos))
-    #PhiFE = phi * FE
-    #C = np.dot(FE.T, PhiFE)
+    K = np.array([ [2. * np.pi * mode / Tspan] for mode in range(1, N_mode+1)])
+    #avetoa = np.hstack([md.avetoa[key]-Tstart for key in md.toagrps])
+    #FEsin = np.sin(avetoa * K)
+    #FEcos = np.cos(avetoa * K)
+    #FE = np.vstack((FEsin, FEcos))
+    toas = np.array([float(toa.TOA)-Tstart for toa in tf.toalist])
+    Fsin = np.sin(toas * K)
+    Fcos = np.cos(toas * K)
+    F = np.vstack((Fsin, Fcos)).T
 
     """Putting the noise models together"""
-    F = dot(U, FE.T) 
+    #print FE.shape
+    #F2 = dot(U, FE.T) 
     #print M.shape, F.shape, U.shape
     T = np.hstack((M, F, U))
     #print T.shape
+    #ax1 = subplot(211, aspect=1)
+    #ax2 = subplot(212, aspect=1)
+    #ax1.imshow(F)
+    #ax2.imshow(F2)
+    #ax1.set_aspect('auto')
+    #ax2.set_aspect('auto')
+    #show()
+    #print np.max((np.ravel(np.abs((F - F2) / F))))
 
     """Putting the timing and noise parameters together """
     m = M.shape[1]
@@ -191,8 +203,8 @@ def loglikelihood(plist):
 
 
 #print loglikelihood(plist)
-#plist = fmin(loglikelihood, plist)
-plist = fmin_powell(loglikelihood, plist)
+plist = fmin(loglikelihood, plist)
+#plist = fmin_powell(loglikelihood, plist)
 p0 = plist[:np0]
 p1 = plist[np0:np1]
 p2 = plist[np1:np2]
