@@ -50,17 +50,18 @@ for par in T2EQUAD:
 
 
 md.average(lapse=0.0001, groups=groups)
-t,w,A = read_design() #read in the design matrix
-u, s, v = numpy.linalg.svd(A) # svd decomposition
+t,w,M = read_design() #read in the design matrix
+#u, s, v = numpy.linalg.svd(A) # svd decomposition
 
 #Np = len(s)
 #F = u[..., :Np] #extract the F matrixd
 #G = u[..., Np:] #extract the G matrrix
 
 r = np.array(md.res)
-n = u.shape[0]
+n = r.shape[0]
+#n = u.shape[0]
 #m = Np
-M = A
+#M = A
 
 
 """ Setup matrix U"""
@@ -88,8 +89,8 @@ UT = U.T
 
 
 p0 = [float(md.__dict__[p]) for p in T2EFAC]
-p1 = [float(md.__dict__[p]) for p in T2EQUAD]
-p2 = [float(md.__dict__[p]) for p in T2ECORR]
+p1 = [np.log(float(md.__dict__[p])) for p in T2EQUAD]
+p2 = [np.log(float(md.__dict__[p])) for p in T2ECORR]
 #p3 = [RNAMP, RNIDX]
 np0 = len(p0)
 np1 = np0 + len(p1)
@@ -99,7 +100,7 @@ np2 = np1 + len(p2)
 plist = np.array(p0 + p1 + p2 )
 
 
-def loglikelihood(plist, Gamma=1.e-5):
+def loglikelihood(plist, Gamma=1.e-4):
     tstart = time.time()
     """setup parameters"""
     p0 = plist[:np0]
@@ -109,9 +110,9 @@ def loglikelihood(plist, Gamma=1.e-5):
     for i,p in enumerate(T2EFAC):
         md.__dict__[p] = np.abs(p0[i])
     for i,p in enumerate(T2EQUAD):
-        md.__dict__[p] = np.abs(p1[i])
+        md.__dict__[p] = np.exp(p1[i])
     for i,p in enumerate(T2ECORR):
-        md.__dict__[p] = np.abs(p2[i])
+        md.__dict__[p] = np.exp(p2[i])
     #md.__dict__['RNAMP'] = np.exp(p3[0])
     #md.__dict__['RNIDX'] = p3[1]
 
@@ -140,19 +141,7 @@ def loglikelihood(plist, Gamma=1.e-5):
             ECORR = md.__dict__['ECORR %s' % key]
             S_ele += [float(ECORR)**2] * len(md.toagrps[key])
         except:pass
-        #try:
-            #ECORR = md.__dict__['ECORR %s' % key]
-            #for epochs in sorted(md.toagrps[key].keys()):
-                #S_ele.append(float(ECORR)**2)
-        #except:
-            #ECORR = ECORR_default
     S_ele = np.array(S_ele)
-    #print "Setup U: {0} s".format(time.time()-tstart)
-    #print 'len(S_ele)', len(S_ele)
-
-    #f, F = get_rr_rep(toas, Tspan, 1./Tspan/4.7, 50, 20)
-    #fyr = 1./secperyear
-    #phi = np.exp(RNAMP*2)/12/np.pi/np.pi *fyr**(RNIDX+3) * f**RNIDX
 
     """Putting the noise models together"""
     #T = np.hstack((M, F, U))
@@ -194,8 +183,9 @@ def loglikelihood(plist, Gamma=1.e-5):
 
     print "calculate likelihood: {0} s".format(time.time()-tstart) , LogLike
     #print 'EFAC:', np.abs(p0)
-    print 'ECORR:', np.abs(p2)
+    #print 'ECORR:', np.abs(p2)
     #print 'RNAMP: %s, RNIDX: %s' % (np.exp(p3[0]), p3[1])
+    print 'plist:', plist
 
     return LogLike
 
@@ -203,7 +193,7 @@ def loglikelihood(plist, Gamma=1.e-5):
 LogLike = lambda x:loglikelihood(x) * -1.
 from testmcmc import SliceSampleMC as mcmc
 from pylab import *
-res = mcmc(LogLike, plist)
+res = mcmc(LogLike, plist, ss=0.1)
 scatter(res[:,-1], res[:,-2])
 show()
 
@@ -219,9 +209,9 @@ p2 = plist[np1:np2]
 for i,p in enumerate(T2EFAC):
     md.__dict__[p] = np.abs(p0[i])
 for i,p in enumerate(T2EQUAD):
-    md.__dict__[p] = np.abs(p1[i])
+    md.__dict__[p] = np.exp(p1[i])
 for i,p in enumerate(T2ECORR):
-    md.__dict__[p] = np.abs(p2[i])
+    md.__dict__[p] = np.exp(p2[i])
 #md.__dict__['RNAMP'] = np.exp(p3[0])
 #md.__dict__['RNIDX'] = p3[1]
 
