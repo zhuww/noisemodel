@@ -63,6 +63,7 @@ def SliceSampleMC(func, x0, m=100, n=1000, ordered=True, ss=1.0):
     Pn = lambda x:exp(func(x) - f0) 
     #normalize the loglikihood to f0
     p = 1.
+    pmax = p
     counter = 0
     while counter < (m+n):
         for i in range(lpar):
@@ -79,11 +80,14 @@ def SliceSampleMC(func, x0, m=100, n=1000, ordered=True, ss=1.0):
             x[j] = xn
             w[j] = wn
             #print x[j], xn
+            if p > pmax:
+                xmax = x
+                pmax = p
             if counter > m:
                 result = np.vstack((result, x))
             counter += 1
-            print counter, j+1
-    return result[1:,...]
+            #print counter, j+1
+    return result[1:,...], xmax, pmax
 
 
 if __name__ == "__main__":
@@ -96,9 +100,9 @@ if __name__ == "__main__":
         return -0.5 * np.dot(p.T, sl.cho_solve(cf, p)) - 0.5 * 2.*np.sum(np.log(np.diag(cf[0])))
 
     x0 = nr.randn(m)
-    res = SliceSampleMC(func, x0, ss=0.1) 
+    res, xmax, pmax = SliceSampleMC(func, x0, ss=0.1, ordered=False) 
     #res = Metropolis(func, x0)#, n=10000)#, ss=0.8) 
     res = np.array(res)
-    print res.shape
-    scatter(res[:,1], res[:,2])
-    show()
+    #print res.shape
+    #scatter(res[:,1], res[:,2])
+    #show()
