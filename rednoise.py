@@ -6,41 +6,38 @@ from numpy import dot
 from datatools.tempo import *
 from fortran_utils import *
 from pylab import *
-from scipy.optimize import fmin, fmin_powell
+from scipy.optimize import fmin, minimize, fmin_powell
+from rankreduced import get_rr_rep, pl_psd
+np.set_printoptions(precision=3, suppress=True)
 
 secperday = 86400
 dayperyear = 365.24218967
+secperyear = secperday*dayperyear
 EFAC_default = 1.0
 ECORR_default = 1.e-6
-
-#tentative starter parameters for red noises:
+EQUAD_default = 1.e-6
+LARGE_NUMBER = np.exp(300)
+ampfac = ((secperyear*1e6)/(2.0*np.pi*np.sqrt(3.0)))
 
 tstart = time.time()
 tf = TOAfile('1713.Sep.T2.tim')
-#print tf.othergroups
-#md = model('J1713+0747_NANOGrav_8yv0.gls.par')
-#md = model('1713_noise_gls.par')
-#md = model('1713_noise_fmin.par')
-#md = model('1713.Sep.T1.par')
-#md = model('J1713+0747.par')
-#md = model('1713.Sep.KOM.par')
-md = model('1713_21yr_JAE.par')
-#md = model('1713_21yr_test.par')
-#md = model('1713_21yr_simple.par')
-#md = model('1713.Sep.NM.par')
-#md = model('1713_21yr_fmin.par')
-#md = model('1713.Sep.dmx.par')
-md.tempofit(tf, DesignMatrix=True)
-#md.tempofit(tf) #get Design matrix from outside.
+Tstart = float(tf.start)
+Tspan = float(tf.end - tf.start)/dayperyear #in unit of year
+toas = np.array([(float(toa.TOA)-Tstart)/dayperyear for toa in tf.toalist]) #in unit of year
 
+
+
+md = model('1713_21yr_test.par')
+#md = model('1713_21yr_JAE.par')
+md.tempofit(tf, DesignMatrix=True)
 T2EFAC = [par for par in md.__dict__ if par.startswith('T2EFAC')]
 T2EQUAD = [par for par in md.__dict__ if par.startswith('T2EQUAD')]
 T2ECORR = [par for par in md.__dict__ if par.startswith('ECORR')]
 
 if 'RNAMP' in md.__dict__:
-    RNAMP = np.log(float(md.RNAMP))
+    RNAMP = np.abs(float(md.RNAMP))
 else:
-    RNAMP = np.log(0.06)
+    RNAMP = np.abs(0.06)
     md.manifest.append('RNAMP')
 if 'RNIDX' in md.__dict__:
     RNIDX = float(md.RNIDX)
@@ -49,197 +46,196 @@ else:
     md.manifest.append('RNIDX')
 
 groups = {}
+flaglist = []
 for par in T2EQUAD:
     flag = ' '.join(par.split()[1:3])
     groups[flag] = tf.othergroups[flag]
+    flaglist.append(flag)
 
-#md.average(lapse=0.01, groups=groups)
+
 md.average(lapse=0.0001, groups=groups)
-#md.average(groups=groups)
-t,w,A = read_design() #read in the design matrix
-u, s, v = numpy.linalg.svd(A) # svd decomposition
-#np.save(open('DesignMatrix_u.npy', 'wb'), (u,s,v))
-#u,s,v = np.load('DesignMatrix_u.npy')
-Np = len(s)
-F = u[..., :Np] #extract the F matrixd
-G = u[..., Np:] #extract the G matrrix
+t,w,M = read_design() #read in the design matrix
+#u, s, v = numpy.linalg.svd(A) # svd decomposition
+
+#Np = len(s)
+#F = u[..., :Np] #extract the F matrixd
+#G = u[..., Np:] #extract the G matrrix
 
 r = np.array(md.res)
-n = u.shape[0]
-m = Np
-M = A
-#Nvec = 1./w
+n = r.shape[0]
+#m = Np
+#M = A
+
+
+""" Setup matrix U"""
+ECORRtags = [' '.join(tag.split()[1:3]) for tag in T2ECORR]
+S_idx = []
+stack = []
+aveeph = []
+ECORRlist = []
+for key in T2ECORR:
+    flag = ' '.join(key.split()[1:3])
+    if key  in md.__dict__:
+        ECORRlist.append(float(md.__dict__[key]))
+        S_idx.append(0)
+        for epochs in sorted(md.toagrps[flag].keys()):
+            aveeph.append(epochs)
+            idx = md.toagrps[flag][epochs]
+            S_idx[-1] += 1
+            l = np.zeros(n)
+            l[idx] = 1.
+            stack.append(l)
+        S_idx[-1] = np.array(S_idx[-1])
+S_ele = np.hstack([ ECORRlist[i]**2 *np.ones(k) for i,k in enumerate(S_idx)])
+U = (np.vstack(stack)).T
+UT = U.T
+
+""" Setup EFAC, EQUAD"""
+EFACtags = [' '.join(tag.split()[1:3]) for tag in T2EFAC]
+EQUADtags = [' '.join(tag.split()[1:3]) for tag in T2EQUAD]
+EFACidx = {}
+EQUADidx = {}
+SIGMA = []
+EFAClist = []
+EQUADlist = []
+for tag in EFACtags:
+    EFACidx[tag] = []
+    EFAC = float(md.__dict__['T2EFAC ' + tag])
+    EFAClist.append(EFAC)
+for tag in EQUADtags:
+    EQUADidx[tag] = []
+    EQUAD = float(md.__dict__['T2EQUAD ' + tag])
+    EQUADlist.append(EQUAD)
+for i, toa in enumerate(tf.toalist):
+    SIGMA.append(float(toa.TOAsigma))
+    TOAflags = [('-%s %s' % (f,toa.flags[f])) for f in toa.flags]
+    try:
+        key = (set(EFACtags) & set(TOAflags)).pop()
+        EFACidx[key].append(i)
+    except:
+        EFAC = EFAC_default
+    key = (set(EQUADtags) & set(TOAflags)).pop()
+    EQUADidx[key].append(i)
+
+"""Setup red noise Fourier matrix, Fr"""
+f, F = get_rr_rep(toas, Tspan, 1./Tspan/4.7, 50, 20)
+#fyr = 1./secperyear
 
 
 p0 = [float(md.__dict__[p]) for p in T2EFAC]
-p1 = [float(md.__dict__[p]) for p in T2EQUAD]
-p2 = [float(md.__dict__[p]) for p in T2ECORR]
-p3 = [RNAMP, RNIDX]
+p1 = [np.log(float(md.__dict__[p])) for p in T2EQUAD]
+p2 = [np.log(float(md.__dict__[p])) for p in T2ECORR]
+p3 = [np.abs(RNAMP), RNIDX]
 np0 = len(p0)
 np1 = np0 + len(p1)
 np2 = np1 + len(p2)
 np3 = np2 + len(p3)
 plist = np.array(p0 + p1 + p2 + p3)
-#p0 = plist[:np0]
-#p1 = plist[np0:np1]
-#p2 = plist[np1:np2]
 
-def loglikelihood(plist, plotred=False):
-#def loglikelihood(plist):
+
+def loglikelihood(plist, logspace=True):
     tstart = time.time()
     """setup parameters"""
     p0 = plist[:np0]
     p1 = plist[np0:np1]
     p2 = plist[np1:np2]
     p3 = plist[np2:np3]
-    for i,p in enumerate(T2EFAC):
-        md.__dict__[p] = np.abs(p0[i])
-    for i,p in enumerate(T2EQUAD):
-        md.__dict__[p] = np.abs(p1[i])
-    for i,p in enumerate(T2ECORR):
-        md.__dict__[p] = np.abs(p2[i])
-    md.__dict__['RNAMP'] = p3[0]
-    md.__dict__['RNIDX'] = p3[1]
+    if logspace:
+        CoordTransTerm =  (np.sum(p1) + np.sum(p2))# + p3[0]) #sume all the logterm for coordinate transformation dz = z d (ln(z))
+        p1 = np.exp(p1)
+        p2 = np.exp(p2)
+        #p3[0] = np.exp(p3[0])
+    else:
+        CoordTransTerm = 0.
+    """Load parameters"""
+    efac = np.ones(n) 
+    for i,tag in enumerate(EFACtags):
+        efac[EFACidx[tag]] = p0[i]
+    Nvec = np.array(SIGMA * efac)**2
+    equad = np.zeros(n)
+    for i,tag in enumerate(EQUADtags):
+        equad[EQUADidx[tag]] = p1[i]
+    Nvec += (equad**2)
+    S_ele = np.hstack([ p2[i]**2. *np.ones(k) for i,k in enumerate(S_idx)])
+    RNAMP = np.abs(p3[0]) #/ ampfac
+    RNIDX = p3[1]
+    #phi = (RNAMP**2)/12/np.pi/np.pi *fyr**(-3-RNIDX) * f**RNIDX
+    phi = (RNAMP**2) * f**RNIDX #assuming f is is 1/yr units.
 
-    """ Setup EFAC, EQUAD"""
-    N_ele = []
-    EFACtags = [' '.join(tag.split()[1:3]) for tag in T2EFAC]
-    EQUADtags = [' '.join(tag.split()[1:3]) for tag in T2EQUAD]
-    for i, toa in enumerate(tf.toalist):
-        TOAflags = [('-%s %s' % (f,toa.flags[f])) for f in toa.flags]
-        try:
-            key = (set(EFACtags) & set(TOAflags)).pop()
-            EFAC = float(md.__dict__['T2EFAC ' + key])
-        except:
-            EFAC = EFAC_default
-        val = (EFAC * float(toa.TOAsigma)) ** 2
-        key = (set(EQUADtags) & set(TOAflags)).pop()
-        EQUAD = float(md.__dict__['T2EQUAD ' + key])
-        val += EQUAD ** 2
-        N_ele.append(val)
-    Nvec = np.array(N_ele)
+    """Putting the noise models together"""
+    T = np.hstack((M, F, U))
 
-    """Setup S and U for jitter parameter ECORR """
-    S_ele = []
-    stack = []
-    aveeph = []
-    for key in md.toagrps:
-        try:
-            ECORR = md.__dict__['ECORR %s' % key]
-        except:
-            ECORR = ECORR_default
-        for epochs in sorted(md.toagrps[key].keys()):
-            S_ele.append(float(ECORR)**2)
-            aveeph.append(epochs)
-            idx = md.toagrps[key][epochs]
-            l = np.zeros(n)
-            l[idx] = 1.
-            stack.append(l)
-    S_ele = np.array(S_ele)
-    U = (np.vstack(stack)).T
-    UT = U.T
-    #print "Setup U: {0} s".format(time.time()-tstart)
-    #print 'len(S_ele)', len(S_ele)
+    """Putting the timing and noise parameters together """
+    m = M.shape[1]
+    n_f = F.shape[1]
+    n_j = U.shape[1]
+    n_p = T.shape[1]
+    Phi_I = np.zeros((n_p, n_p))
+    Pars =  [LARGE_NUMBER for i in range(m)]
+    Pars += list(phi)
+    Pars += list(S_ele)
+    Pi = 1./np.array(Pars)
+    np.fill_diagonal(Phi_I, Pi)
 
-    """Setup red noise Fourier matrix, Fr"""
-    N_mode = 100
-    T = float(tf.end - tf.start)
-    Tstart = float(tf.start)
-    def RedPower(RNAMP, RNIDX, T, N_mode):
-        secperyear = secperday*dayperyear
-        logfac = np.log((secperyear*1e6)/(2.0*np.pi*np.sqrt(3.0)))
-        T_in_s = T * secperday
-        result = 2*(RNAMP-logfac) - np.log(12.) - 2.*np.log(np.pi) - np.log(T_in_s) + 3.*np.log(secperyear)
-        logmu = np.log(np.array(range(1, N_mode+1))) - np.log(T_in_s ) + np.log(secperyear)
-        result += logmu*RNIDX
-        return np.exp(result)
-    Fr_ele = np.array([[p] for p in RedPower(RNAMP, RNIDX, T, N_mode)])
-    phi = np.vstack((Fr_ele, Fr_ele))
-    #phi = Fr_ele
-
-    K = np.array([ [2. * np.pi * mode / T] for mode in range(1, N_mode+1)])
-    avetoa = np.hstack([md.avetoa[key]-Tstart for key in md.toagrps])
-    FEsin = np.sin(avetoa * K)
-    FEcos = np.cos(avetoa * K)
-    FE = np.vstack((FEsin, FEcos))
-    #FE = FEsin
-    PhiFE = phi * FE
-    #print phi
-    C = np.dot(FE.T, PhiFE)
-    #print sl.inv(C)
+    """compute likelyhood"""
+    d = dot(T.T, r/Nvec)
+    Sigma = Phi_I + dot(T.T, (1./Nvec * T.T).T)
+    #print d.shape, Sigma.shape
+    try:
+        cfSigma = sl.cho_factor(Sigma)
+    #except LinAlgError:
+    except :
+        print Sigma
 
 
-    """computing Ntilt*"""
-    Nir = r / Nvec
-    NiF = ((1.0/Nvec) * F.T).T
-    FNiF = np.dot(F.T, NiF)
-    FNir = np.dot(NiF.T, r)
-
-    cf = sl.cho_factor(FNiF) # solve mxm system
-    FNiFr = sl.cho_solve(cf, FNir)
-    Ntilt_r = Nir - np.dot(NiF, FNiFr)
-    d = dot(UT, Ntilt_r)
-
-    NiU = ((1./Nvec) * U.T).T
-    FNiU = np.dot(NiF.T, U)
-    FNiFFNiU = sl.cho_solve(cf, FNiU)
-    Ntilt_U = NiU - np.dot(NiF, FNiFFNiU)
-
-    Nep = len(S_ele)
-    #Si = np.zeros((Nep, Nep))
-    #np.fill_diagonal(Si, 1./S_ele)
-    S = np.zeros((Nep, Nep))
-    np.fill_diagonal(S, S_ele)
-    #print S
-    #print C
-    S += C
-    Si = sl.inv(S)
-    UNtU = dot(UT , Ntilt_U)
-    Sigma = (Si + UNtU)
-
-    #logdetCt = np.sum(np.log(np.array(S_ele)))
-    cfCt = sl.cho_factor(S)
-    logdetCt = 2.*np.sum(np.log(np.diag(cfCt[0])))
-    #logdetCt = np.log(sl.det(S))
-    #print logdetCt,np.log(sl.det(S)),np.sum(np.log(np.array(S_ele)))
-
-    cfSigma = sl.cho_factor(Sigma)
 
     logdetSigma = 2.*np.sum(np.log(np.diag(cfSigma[0])))
-
-    logdetGNG = 2.*np.sum(np.log(np.diag(cf[0]))) + np.sum(np.log(Nvec))
-
     Sid = sl.cho_solve(cfSigma, d)
     dSid = np.dot(d.T, Sid)
 
-    LogLike1 = 0.5 * ( dot(r.T, Ntilt_r) - dSid)
+    logdetCt = np.sum(np.log(np.array(Pars[m:])))
+    logdetN = np.sum(np.log(Nvec))
+
+    Nir = r / Nvec
+
+    LogLike1 = 0.5 * ( dot(r.T, Nir) - dSid)
     #LogLike2 = 0.5*((n-m)*np.log(2.*np.pi) + logdetGNG + logdetSigma + logdetCt)
-    LogLike2 = 0.5 * ( logdetGNG + logdetSigma + logdetCt)
-    LogLike = LogLike1 + LogLike2
+    LogLike2 = 0.5 * ( logdetN + logdetSigma + logdetCt)
+    #Penalty= Gamma * np.max(plist**4)
+    #CoordTransTerm =  0 #(np.sum(p1) + np.sum(p2)) #sume all the logterm for coordinate transformation dz = z d (ln(z))
+    #LogLike = LogLike1 + LogLike2 + Penalty
+    LogLike = LogLike1 + LogLike2 - CoordTransTerm
 
-    #print 'r^T Ntilt^{-1} r:',dot(r.T, Ntilt_r)
-    #print 'd^T Sigma^{-1] d:', dSid
-    #print 'logdet(Ctilt):', logdetCt
-    #print 'logdet(Sigma):', logdetSigma
-    #print 'logdet(GNG):', logdetGNG
-    #print 'logliklihood:', LogLike
 
-    print "calculate likelihood: {0} s".format(time.time()-tstart) , LogLike
+    #print "calculate likelihood: {0} s".format(time.time()-tstart) , LogLike
     #print 'EFAC:', np.abs(p0)
     #print 'ECORR:', np.abs(p2)
-    print 'RNAMP: %s, RNIDX: %s' % (np.exp(p3[0]), p3[1])
-
-    if plotred:
-        Si = sl.inv(Sigma)
-        errorbar(avetoa, Sid, yerr=np.sqrt(np.diag(Si)), fmt='.')
-        show()
-
+    #print 'EQUAD:', np.abs(p1)
+    #print 'RNAMP: %s, RNIDX: %s' % (np.exp(p3[0]), p3[1])
+    #print 'plist:', LogLike, CoordTransTerm, (p3)
+    #print 'phi', np.log(phi)
+    #print 'f', np.log10(f)
 
     return LogLike
 
+#print np.max(plist**4)
+#plist[16] = -16
+#print np.max(plist**4)
 #print loglikelihood(plist)
+#sys.exit(0)
+
+LogLike = lambda x:loglikelihood(x) * -1.
+from testmcmc import SliceSampleMC as mcmc
+#from pylab import *
+res, xmax, pmax = mcmc(LogLike, plist, m=100, n = 1000, ss=0.1,progressbar=True )
+#oldres = np.load('rednoise.npy')
+#res = np.vstack((oldres, res))
+res = np.array(res)
+np.save('rednoise', res)
+plist = xmax
+#sys.exit(0)
+#plist = fmin(loglikelihood, plist)
 #plist = fmin_powell(loglikelihood, plist)
-plist = fmin(loglikelihood, plist)
 p0 = plist[:np0]
 p1 = plist[np0:np1]
 p2 = plist[np1:np2]
@@ -247,9 +243,9 @@ p3 = plist[np2:np3]
 for i,p in enumerate(T2EFAC):
     md.__dict__[p] = np.abs(p0[i])
 for i,p in enumerate(T2EQUAD):
-    md.__dict__[p] = np.abs(p1[i])
+    md.__dict__[p] = np.exp(p1[i])
 for i,p in enumerate(T2ECORR):
-    md.__dict__[p] = np.abs(p2[i])
+    md.__dict__[p] = np.exp(p2[i])
 md.__dict__['RNAMP'] = np.exp(p3[0])
 md.__dict__['RNIDX'] = p3[1]
 

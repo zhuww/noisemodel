@@ -22,13 +22,13 @@ ampfac = ((secperyear*1e6)/(2.0*np.pi*np.sqrt(3.0)))
 tstart = time.time()
 tf = TOAfile('1713.Sep.T2.tim')
 Tstart = float(tf.start)
-Tspan = float(tf.end - tf.start)
-toas = np.array([float(toa.TOA)-Tstart for toa in tf.toalist])
+Tspan = float(tf.end - tf.start)/dayperyear #in unit of year
+toas = np.array([(float(toa.TOA)-Tstart)/dayperyear for toa in tf.toalist]) #in unit of year
 
 
 
-#md = model('1713_21yr_test.par')
-md = model('1713_21yr_JAE.par')
+md = model('1713_21yr_test.par')
+#md = model('1713_21yr_JAE.par')
 md.tempofit(tf, DesignMatrix=True)
 T2EFAC = [par for par in md.__dict__ if par.startswith('T2EFAC')]
 T2EQUAD = [par for par in md.__dict__ if par.startswith('T2EQUAD')]
@@ -107,7 +107,7 @@ for tag in EQUADtags:
     EQUAD = float(md.__dict__['T2EQUAD ' + tag])
     EQUADlist.append(EQUAD)
 for i, toa in enumerate(tf.toalist):
-    SIGMA.append(float(toa.TOAsigma)**2)
+    SIGMA.append(float(toa.TOAsigma))
     TOAflags = [('-%s %s' % (f,toa.flags[f])) for f in toa.flags]
     try:
         key = (set(EFACtags) & set(TOAflags)).pop()
@@ -119,13 +119,13 @@ for i, toa in enumerate(tf.toalist):
 
 """Setup red noise Fourier matrix, Fr"""
 f, F = get_rr_rep(toas, Tspan, 1./Tspan/4.7, 50, 20)
-fyr = 1./secperyear
+#fyr = 1./secperyear
 
 
 p0 = [float(md.__dict__[p]) for p in T2EFAC]
-p1 = [np.abs(float(md.__dict__[p])) for p in T2EQUAD]
-p2 = [np.abs(float(md.__dict__[p])) for p in T2ECORR]
-p3 = [RNAMP, RNIDX]
+p1 = [np.log(float(md.__dict__[p])) for p in T2EQUAD]
+p2 = [np.log(float(md.__dict__[p])) for p in T2ECORR]
+p3 = [np.log(RNAMP), RNIDX]
 np0 = len(p0)
 np1 = np0 + len(p1)
 np2 = np1 + len(p2)
@@ -133,26 +133,34 @@ np3 = np2 + len(p3)
 plist = np.array(p0 + p1 + p2 + p3)
 
 
-def loglikelihood(plist, Gamma=1.e-5):
+def loglikelihood(plist, logspace=True):
     tstart = time.time()
     """setup parameters"""
     p0 = plist[:np0]
     p1 = plist[np0:np1]
     p2 = plist[np1:np2]
     p3 = plist[np2:np3]
+    if logspace:
+        CoordTransTerm =  (np.sum(p1) + np.sum(p2) + p3[0]) #sume all the logterm for coordinate transformation dz = z d (ln(z))
+        p1 = np.exp(p1)
+        p2 = np.exp(p2)
+        p3[0] = np.exp(p3[0])
+    else:
+        CoordTransTerm = 0.
     """Load parameters"""
     efac = np.ones(n) 
     for i,tag in enumerate(EFACtags):
         efac[EFACidx[tag]] = p0[i]
-    Nvec = np.array(SIGMA)**2 * (efac**2)
+    Nvec = np.array(SIGMA * efac)**2
     equad = np.zeros(n)
     for i,tag in enumerate(EQUADtags):
         equad[EQUADidx[tag]] = p1[i]
     Nvec += (equad**2)
-    S_ele = np.hstack([ p2[i]**2 *np.ones(k) for i,k in enumerate(S_idx)])
-    RNAMP = np.abs(p3[0]) / ampfac
+    S_ele = np.hstack([ p2[i]**2. *np.ones(k) for i,k in enumerate(S_idx)])
+    RNAMP = np.abs(p3[0]) #/ ampfac
     RNIDX = p3[1]
-    phi = (RNAMP**2)/12/np.pi/np.pi *fyr**(RNIDX+3) * f**RNIDX
+    #phi = (RNAMP**2)/12/np.pi/np.pi *fyr**(-3-RNIDX) * f**RNIDX
+    phi = (RNAMP**2) * f**RNIDX #assuming f is is 1/yr units.
 
     """Putting the noise models together"""
     T = np.hstack((M, F, U))
@@ -175,7 +183,8 @@ def loglikelihood(plist, Gamma=1.e-5):
     #print d.shape, Sigma.shape
     try:
         cfSigma = sl.cho_factor(Sigma)
-    except LinAlgError:
+    #except LinAlgError:
+    except :
         print Sigma
 
 
@@ -193,35 +202,40 @@ def loglikelihood(plist, Gamma=1.e-5):
     #LogLike2 = 0.5*((n-m)*np.log(2.*np.pi) + logdetGNG + logdetSigma + logdetCt)
     LogLike2 = 0.5 * ( logdetN + logdetSigma + logdetCt)
     #Penalty= Gamma * np.max(plist**4)
-    CoordTransTerm =  0 #(np.sum(p1) + np.sum(p2)) #sume all the logterm for coordinate transformation dz = z d (ln(z))
+    #CoordTransTerm =  0 #(np.sum(p1) + np.sum(p2)) #sume all the logterm for coordinate transformation dz = z d (ln(z))
     #LogLike = LogLike1 + LogLike2 + Penalty
     LogLike = LogLike1 + LogLike2 - CoordTransTerm
 
 
-    print "calculate likelihood: {0} s".format(time.time()-tstart) , LogLike
+    #print "calculate likelihood: {0} s".format(time.time()-tstart) , LogLike
     #print 'EFAC:', np.abs(p0)
     #print 'ECORR:', np.abs(p2)
     #print 'EQUAD:', np.abs(p1)
     #print 'RNAMP: %s, RNIDX: %s' % (np.exp(p3[0]), p3[1])
-    print 'plist:',plist
+    #print 'plist:', LogLike, CoordTransTerm, (p3)
+    #print 'phi', np.log(phi)
+    #print 'f', np.log10(f)
 
     return LogLike
 
 #print np.max(plist**4)
 #plist[16] = -16
 #print np.max(plist**4)
+#print loglikelihood(plist)
 #sys.exit(0)
 
-#LogLike = lambda x:loglikelihood(x) * -1.
-#from testmcmc import SliceSampleMC as mcmc
+LogLike = lambda x:loglikelihood(x) * -1.
+from testmcmc import SliceSampleMC as mcmc
 #from pylab import *
-#res, xmax, pmax = np.array(mcmc(LogLike, plist, n = 1000, ss=0.1))
+res, xmax, pmax = mcmc(LogLike, plist, m=100, n = 10000, ss=0.5,progressbar=True)
 #oldres = np.load('rednoise.npy')
 #res = np.vstack((oldres, res))
-#np.save('rednoise', res)
-#plist = xmax
-#print loglikelihood(plist)
-plist = fmin(loglikelihood, plist)
+#sys.exit(0)
+res = np.array(res)
+np.save('rednoise', res)
+plist = xmax
+#sys.exit(0)
+#plist = fmin(loglikelihood, plist)
 #plist = fmin_powell(loglikelihood, plist)
 p0 = plist[:np0]
 p1 = plist[np0:np1]
@@ -230,10 +244,10 @@ p3 = plist[np2:np3]
 for i,p in enumerate(T2EFAC):
     md.__dict__[p] = np.abs(p0[i])
 for i,p in enumerate(T2EQUAD):
-    md.__dict__[p] = np.abs(p1[i])
+    md.__dict__[p] = np.exp(p1[i])
 for i,p in enumerate(T2ECORR):
-    md.__dict__[p] = np.abs(p2[i])
-md.__dict__['RNAMP'] = np.abs(p3[0])
+    md.__dict__[p] = np.exp(p2[i])
+md.__dict__['RNAMP'] = np.exp(p3[0])
 md.__dict__['RNIDX'] = p3[1]
 
 md.write('1713_21yr_RN.par')

@@ -24,11 +24,12 @@ Tspan = float(tf.end - tf.start)
 toas = np.array([float(toa.TOA)-Tstart for toa in tf.toalist])
 
 
-md = model('1713.Sep.NM.par')
+md = model('1713_21yr_fmin.par')
 md.tempofit(tf, DesignMatrix=True)
 T2EFAC = [par for par in md.__dict__ if par.startswith('T2EFAC')]
 T2EQUAD = [par for par in md.__dict__ if par.startswith('T2EQUAD')]
 T2ECORR = [par for par in md.__dict__ if par.startswith('ECORR')]
+
 
 groups = {}
 for par in T2EQUAD:
@@ -79,7 +80,7 @@ EFACtags = [' '.join(tag.split()[1:3]) for tag in T2EFAC]
 EQUADtags = [' '.join(tag.split()[1:3]) for tag in T2EQUAD]
 EFACidx = {}
 EQUADidx = {}
-SIGMA = []
+TOASIGMA = []
 EFAClist = []
 EQUADlist = []
 for tag in EFACtags:
@@ -91,7 +92,7 @@ for tag in EQUADtags:
     EQUAD = float(md.__dict__['T2EQUAD ' + tag])
     EQUADlist.append(EQUAD)
 for i, toa in enumerate(tf.toalist):
-    SIGMA.append(float(toa.TOAsigma)**2)
+    TOASIGMA.append(float(toa.TOAsigma))
     TOAflags = [('-%s %s' % (f,toa.flags[f])) for f in toa.flags]
     try:
         key = (set(EFACtags) & set(TOAflags)).pop()
@@ -103,8 +104,8 @@ for i, toa in enumerate(tf.toalist):
 
 
 p0 = [float(md.__dict__[p]) for p in T2EFAC]
-p1 = [np.log(float(md.__dict__[p])) for p in T2EQUAD]
-p2 = [np.log(float(md.__dict__[p])) for p in T2ECORR]
+p1 = [np.abs(float(md.__dict__[p])) for p in T2EQUAD]
+p2 = [np.abs(float(md.__dict__[p])) for p in T2ECORR]
 #p3 = [RNAMP, RNIDX]
 np0 = len(p0)
 np1 = np0 + len(p1)
@@ -124,12 +125,12 @@ def loglikelihood(plist):
     efac = np.ones(n) 
     for i,tag in enumerate(EFACtags):
         efac[EFACidx[tag]] = p0[i]
-    Nvec = np.array(SIGMA)**2 * (efac**2)
+    Nvec = np.array(TOASIGMA * efac)**2 
     equad = np.zeros(n)
     for i,tag in enumerate(EQUADtags):
         equad[EQUADidx[tag]] = p1[i]
     Nvec += (equad**2)
-    S_ele = np.hstack([ p2[i]**2 *np.ones(k) for i,k in enumerate(S_idx)])
+    S_ele = np.hstack([ (p2[i]**2) * np.ones(k) for i,k in enumerate(S_idx)])
 
     """Putting the noise models together"""
     #T = np.hstack((M, F, U))
@@ -146,6 +147,8 @@ def loglikelihood(plist):
     Phi_I = np.zeros((n_p, n_p))
     Pi = 1./np.array(Pars)
     np.fill_diagonal(Phi_I, Pi)
+    #print Pars
+    #print Pi
 
     """compute likelyhood"""
     d = dot(T.T, r/Nvec)
@@ -169,7 +172,7 @@ def loglikelihood(plist):
     #LogLike2 = 0.5*((n-m)*np.log(2.*np.pi) + logdetGNG + logdetSigma + logdetCt)
     LogLike2 = 0.5 * ( logdetN + logdetSigma + logdetCt)
     #Penalty= Gamma * np.max(plist**4)
-    CoordTransTerm = np.sum(p1) + np.sum(p2)  #sume all the logterm for coordinate transformation dz = z d (ln(z))
+    CoordTransTerm = 0. #np.sum(p1) + np.sum(p2)  #sume all the logterm for coordinate transformation dz = z d (ln(z))
     #LogLike = LogLike1 + LogLike2 + Penalty
     LogLike = LogLike1 + LogLike2 - CoordTransTerm
 
@@ -183,16 +186,16 @@ def loglikelihood(plist):
     return LogLike
 
 
-#LogLike = lambda x:loglikelihood(x) * -1.
-#from testmcmc import SliceSampleMC as mcmc
-#from pylab import *
-#res, xmax, pmax = mcmc(LogLike, plist, m=1000, n =10000, ss=0.1)
+LogLike = lambda x:loglikelihood(x) * -1.
+from testmcmc import SliceSampleMC as mcmc
+from pylab import *
+res, xmax, pmax = mcmc(LogLike, plist, m=1000, n =10000, ss=0.1)
 #oldres = np.load('whitenoise.npy')
 #res = np.vstack((oldres, res))
-#np.save('whitenoise', res)
-#plist = xmax
-print loglikelihood(plist)
-plist = fmin(loglikelihood, plist)
+np.save('whitenoise', res)
+plist = xmax
+#print loglikelihood(plist)
+#plist = fmin(loglikelihood, plist)
 #plist = fmin_powell(loglikelihood, plist)
 
 sys.exit(0)
