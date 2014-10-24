@@ -27,7 +27,7 @@ toas = np.array([(float(toa.TOA)-Tstart)/dayperyear for toa in tf.toalist]) #in 
 
 
 
-md = model('1713_21yr_omdot.par')
+md = model('1713_21yr_test.par')
 #md = model('1713_21yr_JAE.par')
 md.tempofit(tf, DesignMatrix=True)
 T2EFAC = [par for par in md.__dict__ if par.startswith('T2EFAC')]
@@ -207,26 +207,36 @@ def loglikelihood(plist, logspace=True):
     LogLike = LogLike1 + LogLike2 - CoordTransTerm
 
 
-    print "calculate likelihood: {0} s".format(time.time()-tstart) , LogLike, p3
+    #print "calculate likelihood: {0} s".format(time.time()-tstart) , LogLike
     #print 'EFAC:', np.abs(p0)
     #print 'ECORR:', np.abs(p2)
     #print 'EQUAD:', np.abs(p1)
     #print 'RNAMP: %s, RNIDX: %s' % (np.exp(p3[0]), p3[1])
-    #print 'plist:', LogLike, CoordTransTerm, (p3)
+    print 'plist:', LogLike, CoordTransTerm, (p3)
     #print 'phi', np.log(phi)
     #print 'f', np.log10(f)
 
     return LogLike
 
-#LogLike = lambda x:loglikelihood(x) * -1.
-#from testmcmc import SliceSampleMC as mcmc
-#res, xmax, pmax = mcmc(LogLike, plist, m=100, n = 10000, ss=0.5,progressbar=True)
-#res = np.array(res)
-#np.save('rednoise', res)
-#plist = xmax
+#print np.max(plist**4)
+#plist[16] = -16
+#print np.max(plist**4)
+#print loglikelihood(plist)
+#sys.exit(0)
+
+LogLike = lambda x:loglikelihood(x) * -1.
+from testmcmc import SliceSampleMC as mcmc
+#from pylab import *
+oldres = np.load('rednoise.npy')
+res, xmax, pmax = mcmc(LogLike, plist, m=100, n = 10000, ss=1.0,progressbar=True)
+#sys.exit(0)
+res = np.array(res)
+res = np.vstack((oldres, res))
+np.save('rednoise', res)
+plist = xmax
 #sys.exit(0)
 #plist = fmin(loglikelihood, plist)
-plist = fmin_powell(loglikelihood, plist)
+#plist = fmin_powell(loglikelihood, plist)
 p0 = plist[:np0]
 p1 = plist[np0:np1]
 p2 = plist[np1:np2]
@@ -240,4 +250,4 @@ for i,p in enumerate(T2ECORR):
 md.__dict__['RNAMP'] = np.exp(p3[0])
 md.__dict__['RNIDX'] = p3[1]
 
-md.write('1713_21yr_RN.par')
+md.write('1713_21yr_max.par')
