@@ -56,6 +56,15 @@ print 'Observed OMDOT:',  pf.OMDOT[0], 'Expected OMDOT:', OMDOT_PA+OMDOT_SM
 
 #print 3.*(2*pi/(secperday*88))**(5./3)*(1.)*(2./3)/(1. - E**2)* 180./pi * secperday * 365 * 60
 
+Delta_DM = float(pf.OMDOT[0]) - OMDOT_PA - OMDOT_SM
+Pb = float(pf.PB[0])
+Delta_PB =  Delta_DM/360/dayperyear * Pb * Pb
+print "TO move OMDOT to GR value:", Delta_PB
+pf.PB[0] += Decimal(Delta_PB)
+pf.OMDOT[0] = Decimal(OMDOT_PA + OMDOT_SM)
+pf.write('1713.Oct.omdot.par')
+
+"""
 print 'Test code using Mercury'
 M1 = 1.
 M2 = 3.3e23/1.989e30
@@ -64,3 +73,4 @@ E = 0.205630
 
 OMDOT = 3.*(2*pi/Pb)**(5./3)*(Tsun*(M1+M2))**(2./3)/(1. - E**2)
 print 'OMDOT per century:', OMDOT * 100* 180./pi * secperday * dayperyear * 60 * 60, 'seconds'
+"""

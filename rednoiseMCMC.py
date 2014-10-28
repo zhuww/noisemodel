@@ -8,7 +8,7 @@ from fortran_utils import *
 from pylab import *
 from scipy.optimize import fmin, minimize, fmin_powell
 from rankreduced import get_rr_rep, pl_psd
-np.set_printoptions(precision=3, suppress=True)
+np.set_printoptions(precision=3, threshold=np.nan, suppress=False)
 
 secperday = 86400
 dayperyear = 365.24218967
@@ -134,12 +134,13 @@ plist = np.array(p0 + p1 + p2 + p3)
 
 
 def loglikelihood(plist, logspace=True):
-    tstart = time.time()
+    #tstart = time.time()
+    #print 'plist:', plist
     """setup parameters"""
-    p0 = np.copy(plist[:np0])
-    p1 = np.copy(plist[np0:np1])
-    p2 = np.copy(plist[np1:np2])
-    p3 = np.copy(plist[np2:np3])
+    p0 = np.array(plist[:np0])
+    p1 = np.array(plist[np0:np1])
+    p2 = np.array(plist[np1:np2])
+    p3 = np.array(plist[np2:np3])
     if logspace:
         CoordTransTerm =  (np.sum(p1) + np.sum(p2) + p3[0]) #sume all the logterm for coordinate transformation dz = z d (ln(z))
         p1 = np.exp(p1)
@@ -181,11 +182,19 @@ def loglikelihood(plist, logspace=True):
     d = dot(T.T, r/Nvec)
     Sigma = Phi_I + dot(T.T, (1./Nvec * T.T).T)
     #print d.shape, Sigma.shape
-    try:
-        cfSigma = sl.cho_factor(Sigma)
+    #try:
+    cfSigma = sl.cho_factor(Sigma)
     #except LinAlgError:
-    except :
-        print Sigma
+    #except :
+        #print plist
+        #print p0
+        #print p1
+        #print p2
+        #print p3
+        #print Sigma
+        #print Pi[m:]
+        #print np.where(Nvec==np.nan) 
+        #print np.where(Pi==np.nan) 
 
 
 
@@ -212,7 +221,7 @@ def loglikelihood(plist, logspace=True):
     #print 'ECORR:', np.abs(p2)
     #print 'EQUAD:', np.abs(p1)
     #print 'RNAMP: %s, RNIDX: %s' % (np.exp(p3[0]), p3[1])
-    print 'plist:', LogLike, CoordTransTerm, (p3)
+    #print 'plist:', LogLike, CoordTransTerm, (p3)
     #print 'phi', np.log(phi)
     #print 'f', np.log10(f)
 
@@ -228,7 +237,7 @@ LogLike = lambda x:loglikelihood(x) * -1.
 from testmcmc import SliceSampleMC as mcmc
 #from pylab import *
 oldres = np.load('rednoise.npy')
-res, xmax, pmax = mcmc(LogLike, plist, m=100, n = 10000, ss=1.0,progressbar=True)
+res, xmax, pmax = mcmc(LogLike, plist, m=100, n = 10000, ss=0.1,progressbar=True)
 #sys.exit(0)
 res = np.array(res)
 res = np.vstack((oldres, res))

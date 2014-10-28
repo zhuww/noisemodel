@@ -136,10 +136,10 @@ plist = np.array(p0 + p1 + p2 + p3)
 def loglikelihood(plist, logspace=True):
     tstart = time.time()
     """setup parameters"""
-    p0 = np.copy(plist[:np0])
-    p1 = np.copy(plist[np0:np1])
-    p2 = np.copy(plist[np1:np2])
-    p3 = np.copy(plist[np2:np3])
+    p0 = np.array(plist[:np0])
+    p1 = np.array(plist[np0:np1])
+    p2 = np.array(plist[np1:np2])
+    p3 = np.array(plist[np2:np3])
     if logspace:
         CoordTransTerm =  (np.sum(p1) + np.sum(p2) + p3[0]) #sume all the logterm for coordinate transformation dz = z d (ln(z))
         p1 = np.exp(p1)
