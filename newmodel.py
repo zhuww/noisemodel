@@ -27,7 +27,8 @@ toas = np.array([(float(toa.TOA)-Tstart)/dayperyear for toa in tf.toalist]) #in 
 
 
 
-md = model('1713_21yr_omdot.par')
+md = model('1713.Oct.test.par')
+#md = model('1713_21yr_omdot.par')
 #md = model('1713_21yr_JAE.par')
 md.tempofit(tf, DesignMatrix=True)
 T2EFAC = [par for par in md.__dict__ if par.startswith('T2EFAC')]
@@ -225,8 +226,8 @@ def loglikelihood(plist, logspace=True):
 #np.save('rednoise', res)
 #plist = xmax
 #sys.exit(0)
-#plist = fmin(loglikelihood, plist)
-plist = fmin_powell(loglikelihood, plist)
+plist = fmin(loglikelihood, plist)
+#plist = fmin_powell(loglikelihood, plist)
 p0 = plist[:np0]
 p1 = plist[np0:np1]
 p2 = plist[np1:np2]
@@ -240,4 +241,4 @@ for i,p in enumerate(T2ECORR):
 md.__dict__['RNAMP'] = np.exp(p3[0])
 md.__dict__['RNIDX'] = p3[1]
 
-md.write('1713_21yr_RN.par')
+md.write('1713_21yr_Oct.par')

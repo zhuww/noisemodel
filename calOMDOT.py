@@ -19,8 +19,10 @@ Tsun = 4.925490947e-6
 #pf = model('1713.9yr.S.par')
 #pf = model('J1713+0747_NANOGrav_8yv0.gls.par')
 #pf = model('1713.GLS.out.par')
-pf = model('J1713+0747.par')
+#pf = model('J1713+0747.par')
 #pf = model('1713.Sep.T2.gls.par')
+#pf = model('1713_21yr_omdot.par')
+pf = model('1713.Oct.test.par')
 
 M2 = float(pf.M2[0])
 if pf.SINI == 'KIN':
@@ -69,7 +71,7 @@ print 'Observed OMDOT:',  pf.OMDOT[0], 'Expected OMDOT:', OMDOT_PA+OMDOT_SM
 Delta_DM = float(pf.OMDOT[0]) - OMDOT_PA - OMDOT_SM
 Pb = float(pf.PB[0])
 Delta_PB =  Delta_DM/360/dayperyear * Pb * Pb
-print "TO move OMDOT to GR value:", Delta_PB
+print "To move OMDOT to GR value require PB change:", Delta_PB, "day", Delta_PB * 3600. * 24, "s"
 pf.PB[0] -= Decimal(Delta_PB)
 pf.OMDOT[0] = Decimal(OMDOT_PA + OMDOT_SM)
 pf.write('1713.Oct.omdot.par')
