@@ -95,7 +95,6 @@ def SliceSampleMC(func, x0, m=100, n=1000, ordered=True, ss=1.0, progressbar=Fal
 
 
 if __name__ == "__main__":
-    from scipy.interpolate import griddata
     m = 3
     N = np.zeros((m,m))
     np.fill_diagonal(N, np.ones(m))
@@ -105,23 +104,21 @@ if __name__ == "__main__":
         return -0.5 * np.dot(p.T, sl.cho_solve(cf, p)) - 0.5 * 2.*np.sum(np.log(np.diag(cf[0])))
 
     x0 = nr.randn(m)
-    #res, xmax, pmax = SliceSampleMC(func, x0, n = 10000, ss=0.9, ordered=False) 
     res, xmax, pmax = Metropolis(func, x0, n=10000, ss=1.) 
     res = np.array(res)
     parray = res[:,0]
     res[:,0] = (parray - pmax)
+    sys.exit(0)
     print res.shape
+    from scipy.interpolate import griddata
     x = res[:,1]
     y = res[:,2]
     z = res[:,0]
     xi = np.linspace(np.min(x), np.max(x), 30)
     yi = np.linspace(np.min(y), np.max(y), 30)
     zi= griddata((x,y), z, (xi[None,:], yi[:,None]), method='cubic')
-    #plot(z)
     print np.max(z), np.min(z)
     levels = [0.5*np.min(z)]
     CS = contour(xi,yi,zi, levels)
     imshow(zi, cmap=cm.gray, extent=(np.max(x), np.min(x), np.min(y),np.max(y)))
-    #scatter(x, y)
-    #contour(res[:,1], res[:2], res[:0])
     show()
