@@ -6,7 +6,7 @@ from numpy import dot
 from datatools.tempo import *
 from fortran_utils import *
 from pylab import *
-from scipy.optimize import fmin, minimize, fmin_powell
+from scipy.optimize import fmin, fmin_powell
 from rankreduced import get_rr_rep, pl_psd
 np.set_printoptions(precision=3, suppress=True)
 
@@ -27,7 +27,8 @@ toas = np.array([(float(toa.TOA)-Tstart)/dayperyear for toa in tf.toalist]) #in 
 
 
 
-md = model('1713.Oct.test.par')
+md = model('1713_21yr_test.par')
+#md = model('1713.Oct.test.par')
 #md = model('1713_21yr_omdot.par')
 #md = model('1713_21yr_JAE.par')
 md.tempofit(tf, DesignMatrix=True)
