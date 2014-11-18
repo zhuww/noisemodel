@@ -2,7 +2,7 @@ from datatools.tempo import *
 import numpy as np
 from TexTable import *
 from pylab import *
-import pickle
+import cPickle as pickle
 #from round import shortform as SF
 
 def SF(f):
@@ -11,26 +11,28 @@ def SF(f):
     else:
         return '%.3f' % f
 
-m = model('Oct.T1.par')
+m = model('Oct.T1.omdot.par')
 t = TOAfile('1713.Sep.T2.tim')
 #m.tempofit(t, GLS=True)
 del m
-m = pickle.load(open('Oct.T1.pkl', 'rb'))
+#pickle.dump(m, open('Oct.T1.omdot.pkl', 'wb'), protocol=2)
+m = pickle.load(open('Oct.T1.omdot.pkl', 'rb'))
 m.groups['all'] = range(len(t.toalist))
-#y,err = np.load('RNrealization.npy')
+y,err = np.load('RNrealization.npy')
 #m.res -= y
-#m.average(lapse=0.1)
-m.average()
-m.plot('date', 'averes')
-show()
-#print m.wrms
-#print m.avewrms
+#m.average()
+#m.plot('date', 'averes')
+#show()
+#m.plot('ophase', 'averes')
+#show()
+print m.wrms
+print m.avewrms
 #pickle.dump(m, open('Oct.T1.pkl', 'wb'), protocol=2)
 #keys = m.groups.keys()
 #keys.sort()
+sys.exit(0)
 keys = ['all', 'M3A-L', 'M3B-L', 'M4-L', 'M4-S', 'M4O-L', 'M4O-S', 'ABPP-L', 'ABPP-S', 'ASP-L', 'ASP-S', 'GASP-8', 'GASP-L', 'GUPPI-8', 'GUPPI-L', 'PUPPI-L', 'PUPPI-S' ]
 #print m.avewrms
-#sys.exit(0)
 wrms = [SF(m.wrms[k]) for k in keys]
 avewrms = [SF(m.avewrms[k]) for k in keys]
 avesig = [SF(np.mean([float(t.toalist[i].TOAsigma) for i in m.groups[k]])) for  k in keys]

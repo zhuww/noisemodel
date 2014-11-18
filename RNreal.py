@@ -27,7 +27,8 @@ toas = np.array([(float(toa.TOA)-Tstart)/dayperyear for toa in tf.toalist]) #in 
 
 
 
-md = model('Oct.T1.par')
+md = model('Oct.T1.omdot.par')
+#md = model('Oct.T1.par')
 md.tempofit(tf, DesignMatrix=True)
 #md.tempofit(tf, GLS=True)#DesignMatrix=True)
 
@@ -220,5 +221,6 @@ def getRNreal(md, tf, t, w, M, r, n):
 y, yerr = getRNreal(md, tf, t, w, M, r, n)
 np.save('RNrealization.npy', (y, yerr))
 
-#plot(t, r - y, '.')
-#show()
+
+plot(t, r - y, '.')
+show()

@@ -78,8 +78,8 @@ print "To move OMDOT to GR value require PB change:", Delta_PB, "day", Delta_PB 
 pf.PB[0] -= Decimal(Delta_PB)
 pf.OMDOT[0] = Decimal(OMDOT_PA + OMDOT_SM)
 #sys.exit(0)
-#pf.freezeall()
-pf.write('Oct.T1.par')
+pf.freezeall()
+pf.write('Oct.T1.omdot.par')
 
 """
 print 'Test code using Mercury'

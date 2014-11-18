@@ -698,4 +698,4 @@ T2EQUAD -i ABPP-L	0.148
 TNRedAmp	-13.9722
 TNRedGam	2.88301
 TNRedC	100
-subtractRed 1
+subtractRed 0
