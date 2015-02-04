@@ -35,10 +35,14 @@ def Metropolis(func, x0, m=100, n=1000, ss = 1.0):
 def SliceSampler(Px, x0, u, w):
     xmax = x0+w
     xmin = x0-w
+    multiplier = 0.
     while Px(xmax) > u:
-        xmax += w
+        xmax += w*np.exp(multiplier)
+        multiplier += 1.
+    multiplier = 0.
     while Px(xmin) > u:
-        xmin -= w
+        xmin -= w*np.exp(multiplier)
+        multiplier += 1.
     x = nr.uniform(xmin, xmax)
     p = Px(x)
     while p < u:
@@ -98,17 +102,20 @@ if __name__ == "__main__":
     m = 3
     N = np.zeros((m,m))
     np.fill_diagonal(N, np.ones(m))
-    cov = 0.3 * nr.randn(m, m) + N
+    cov = 0.1 * nr.randn(m, m) + N
     cf = sl.cho_factor(cov)
     def func(p):
         return -0.5 * np.dot(p.T, sl.cho_solve(cf, p)) - 0.5 * 2.*np.sum(np.log(np.diag(cf[0])))
 
     x0 = nr.randn(m)
-    res, xmax, pmax = Metropolis(func, x0, n=10000, ss=1.) 
+    #res, xmax, pmax = Metropolis(func, x0, n=10000, ss=1.) 
+    res, xmax, pmax = SliceSampleMC(func, x0, n=10000, ss=1.) 
     res = np.array(res)
     parray = res[:,0]
     res[:,0] = (parray - pmax)
     sys.exit(0)
+    #scatter(res[:,-2], res[:,-1])
+    #show()
     print res.shape
     from scipy.interpolate import griddata
     x = res[:,1]

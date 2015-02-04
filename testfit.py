@@ -1,22 +1,19 @@
-from pylab import *
+import numpy as np
 from datatools.tempo import *
+from pylab import *
 
-#m = model('1713.Sep.T2.par')
-m = model('1713_21yr_JSE.par')
-t = TOAfile('1713.Sep.T2.tim')
-#m.thawall()
-m.tempofit(t, GLS=True)
-m.average()
-print m.chisq, m.dof
+md = model('overlap_L.par')
+tf = TOAfile('overlap_L.tim')
+
+md.freezeall('SINI')
+md.freezeall('M2')
+md.freezeall('XDOT')
+md.tempofit(tf)
+md.average()
 
 a1 = subplot(211)
 a2 = subplot(212)
 
-
-#m.plot('date', 'DMX', ax=a1)
-m.plot('mjd', 'averes', ax=a2)
-#m.plot('mjd', 'DMX')
-m1 = model(m.newpar.parfile)
-del m,t
-m1.plot('mjd', 'DMX', ax=a1)
+md.plot('mjd', 'DMX', ax=a1)
+md.plot('mjd', 'averes', LegendOn=True, ax=a2, LegendLoc=4)
 show()

@@ -186,7 +186,8 @@ def loglikelihood(plist, logspace=True):
         cfSigma = sl.cho_factor(Sigma)
     #except LinAlgError:
     except :
-        print Sigma
+        #print Sigma
+        return LARGE_NUMBER
 
 
 
