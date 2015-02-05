@@ -1,12 +1,13 @@
 import numpy as np
 import scipy.linalg as sl
+from cholesky import Gcholesky, Gchosolve
 import os, sys
 import time
 from numpy import dot
 from datatools.tempo import *
 from fortran_utils import *
 from pylab import *
-from scipy.optimize import fmin, minimize, fmin_powell
+from scipy.optimize import fmin, fmin_powell
 from rankreduced import get_rr_rep, pl_psd
 np.set_printoptions(precision=3, suppress=True)
 
@@ -16,18 +17,19 @@ secperyear = secperday*dayperyear
 EFAC_default = 1.0
 ECORR_default = 1.e-6
 EQUAD_default = 1.e-6
-LARGE_NUMBER = np.exp(300)
+LARGE_NUMBER = np.exp(50)
+SMALL_NUMBER = np.exp(-100)
 ampfac = ((secperyear*1e6)/(2.0*np.pi*np.sqrt(3.0)))
 
 tstart = time.time()
-tf = TOAfile('1713.Feb.T2.tim')
+tf = TOAfile('1713.Sep.T2.tim')
 Tstart = float(tf.start)
 Tspan = float(tf.end - tf.start)/dayperyear #in unit of year
 toas = np.array([(float(toa.TOA)-Tstart)/dayperyear for toa in tf.toalist]) #in unit of year
 
 
 
-md = model('1713.Feb.T2.par')
+md = model('1713_21yr_test.par')
 #md = model('1713.Oct.test.par')
 #md = model('1713_21yr_omdot.par')
 #md = model('1713_21yr_JAE.par')
@@ -176,7 +178,7 @@ def loglikelihood(plist, logspace=True):
     Pars =  [LARGE_NUMBER for i in range(m)]
     Pars += list(phi)
     Pars += list(S_ele)
-    Pi = 1./np.array(Pars)
+    Pi = 1./np.array(Pars) #+ SMALL_NUMBER
     np.fill_diagonal(Phi_I, Pi)
 
     """compute likelyhood"""
@@ -184,16 +186,20 @@ def loglikelihood(plist, logspace=True):
     Sigma = Phi_I + dot(T.T, (1./Nvec * T.T).T)
     #print d.shape, Sigma.shape
     try:
-        cfSigma = sl.cho_factor(Sigma)
+        #cfSigma = sl.cholesky(Sigma)
+        #np.save('sigma', Sigma)
+        cfSigma = Gcholesky(Sigma)
+        #print "pass cholesky"
     #except LinAlgError:
     except :
-        #print Sigma
-        return LARGE_NUMBER
+        print Sigma
 
 
 
-    logdetSigma = 2.*np.sum(np.log(np.diag(cfSigma[0])))
-    Sid = sl.cho_solve(cfSigma, d)
+    logdetSigma = 2.*np.sum(np.log(np.diag(cfSigma)))
+    #Sid = sl.cho_solve((cfSigma, False), d)
+    Sid = Gchosolve(cfSigma, d)
+    #print "pass solve"
     dSid = np.dot(d.T, Sid)
 
     logdetCt = np.sum(np.log(np.array(Pars[m:])))
@@ -243,4 +249,4 @@ for i,p in enumerate(T2ECORR):
 md.__dict__['RNAMP'] = np.exp(p3[0])
 md.__dict__['RNIDX'] = p3[1]
 
-md.write('1713_21yr_Feb.par')
+md.write('1713_21yr_gpu.par')

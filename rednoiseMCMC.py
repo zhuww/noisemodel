@@ -20,14 +20,14 @@ LARGE_NUMBER = np.exp(300)
 ampfac = ((secperyear*1e6)/(2.0*np.pi*np.sqrt(3.0)))
 
 tstart = time.time()
-tf = TOAfile('1713.Sep.T2.tim')
+tf = TOAfile('1713.Feb.T2.tim')
 Tstart = float(tf.start)
 Tspan = float(tf.end - tf.start)/dayperyear #in unit of year
 toas = np.array([(float(toa.TOA)-Tstart)/dayperyear for toa in tf.toalist]) #in unit of year
 
 
 
-md = model('1713.Oct.test.par')
+md = model('1713.Feb.T2.par')
 #md = model('1713_21yr_JAE.par')
 md.tempofit(tf, DesignMatrix=True)
 T2EFAC = [par for par in md.__dict__ if par.startswith('T2EFAC')]
@@ -243,8 +243,8 @@ res, xmax, pmax = mcmc(LogLike, plist, m=100, n = 10000, ss=0.1,progressbar=True
 #sys.exit(0)
 res = np.array(res)
 #res = np.vstack((oldres, res))
-#np.save('rednoise', res)
-np.save('RN_OMDOT', res)
+np.save('rednoise', res)
+#np.save('RN_OMDOT', res)
 plist = xmax
 #sys.exit(0)
 #plist = fmin(loglikelihood, plist)
@@ -262,4 +262,4 @@ for i,p in enumerate(T2ECORR):
 md.__dict__['RNAMP'] = np.exp(p3[0])
 md.__dict__['RNIDX'] = p3[1]
 
-md.write('1713.Oct.mcmc.par')
+md.write('1713.Feb.mcmc.par')
